@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>리밸런싱 위젯</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #0f0f11;
+    --surface: #18181c;
+    --surface2:#222228;
+    --border:  rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text:    #f0eff4;
+    --muted:   #8c8a96;
+    --faint:   #3a3940;
+    --font:    'IBM Plex Sans KR', sans-serif;
+    --mono:    'IBM Plex Mono', monospace;
+    --r:       10px;
+    --green:   #34c78a;
+    --red:     #f06a6a;
+    --amber:   #f5a623;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    padding: 16px;
+    min-height: 100vh;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px; gap: 8px; flex-wrap: wrap;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+  .topbar h1   { font-size: 14px; font-weight: 500; letter-spacing: -0.3px; }
+
+  .sync-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-family: var(--mono); color: var(--muted);
+    background: var(--surface); border: 0.5px solid var(--border2);
+    border-radius: 6px; padding: 3px 8px;
+  }
+  .sync-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: var(--green); }
+  .sync-dot.warn { background: var(--amber); }
+  .sync-dot.off  { background: var(--red); }
+
+  .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .account-select {
+    background: var(--surface); border: 0.5px solid var(--border2);
+    border-radius: 7px; color: var(--text); font-family: var(--mono);
+    font-size: 11px; padding: 4px 8px; outline: none; cursor: pointer;
+  }
+  .account-select option { background: #1a1a1e; }
+  .icon-btn {
+    background: transparent; border: 0.5px solid var(--border2);
+    border-radius: 7px; color: var(--muted); font-size: 14px;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .icon-btn:hover { background: var(--surface2); color: var(--text); }
+  .icon-btn.spin  { animation: spin 0.55s linear; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Summary ── */
+  .summary {
+    display: grid; grid-template-columns: repeat(3,1fr);
+    gap: 8px; margin-bottom: 14px;
+  }
+  .stat {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--r); padding: 10px 12px;
+  }
+  .stat-label { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+  .stat-value { font-family: var(--mono); font-size: 16px; font-weight: 500; }
+  .stat-value.krw::before { content: '₩ '; font-size: 10px; color: var(--muted); }
+
+  /* ── Extra input ── */
+  .extra-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .extra-row label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .extra-input {
+    flex: 1; max-width: 200px;
+    background: var(--surface); border: 0.5px solid var(--border2);
+    border-radius: 7px; color: var(--text); font-family: var(--mono);
+    font-size: 12px; padding: 6px 10px; outline: none;
+    transition: border-color 0.15s;
+  }
+  .extra-input:focus { border-color: rgba(255,255,255,0.3); }
+  .extra-hint { font-family: var(--mono); font-size: 11px; color: var(--green); }
+
+  /* ── Table ── */
+  .table-wrap {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--r); overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    font-size: 10px; font-weight: 500; color: var(--muted);
+    text-align: left; padding: 8px 10px;
+    border-bottom: 0.5px solid var(--border);
+    letter-spacing: 0.3px; white-space: nowrap;
+  }
+  thead th:not(:first-child) { text-align: right; }
+  tbody tr { border-bottom: 0.5px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 8px 10px; vertical-align: middle; }
+  tbody td:not(:first-child) { text-align: right; font-family: var(--mono); font-size: 11px; }
+
+  .ticker-cell { display: flex; align-items: center; gap: 7px; }
+  .dot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+  .tname { font-size: 12px; font-weight: 500; }
+  .tsub  { font-size: 10px; color: var(--muted); margin-top: 1px; font-family: var(--mono); }
+
+  .buy  { color: var(--green); font-weight: 500; }
+  .sell { color: var(--red);   font-weight: 500; }
+  .hold { color: var(--muted); }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 10px; font-size: 10px; color: var(--faint);
+    font-family: var(--mono);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px;
+  }
+
+  /* ── Empty ── */
+  .empty {
+    padding: 36px 20px; text-align: center;
+    color: var(--muted); font-size: 12px; line-height: 1.9;
+  }
+  .empty strong { color: var(--text); display: block; margin-bottom: 8px; font-size: 13px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const _supa = supabase.createClient(
+  'https://wisottefgtwovswbdvzf.supabase.co',
+  'sb_publishable_rRRVknEvCAXOz1CP-sYq5w_w164hqU3'
+);
+async function loadFromCloud(account) {
+  try {
+    const { data } = await _supa.from('portfolio').select('*').eq('account', account).single();
+    if (data) {
+      return {
+        holdings: JSON.parse(data.holdings || '[]'),
+        targets: JSON.parse(data.targets || '{}')
+      };
+    }
+  } catch(e) {}
+  return null;
+}
+</script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <h1>리밸런싱</h1>
+    <div class="sync-badge">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-label">확인 중</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <select class="account-select" id="account-sel" onchange="switchAccount(this.value)">
+      <option value="j.w">j.w</option>
+      <option value="g.y">g.y</option>
+    </select>
+    <button class="icon-btn" id="rfbtn" onclick="refresh()" title="새로고침">↻</button>
+  </div>
+</div>
+
+<div class="summary">
+  <div class="stat"><div class="stat-label">총 평가금액</div><div class="stat-value krw" id="s-total">—</div></div>
+  <div class="stat"><div class="stat-label">종목 수</div><div class="stat-value" id="s-count">—</div></div>
+  <div class="stat"><div class="stat-label">최대 편차</div><div class="stat-value" id="s-dev">—</div></div>
+</div>
+
+<div class="extra-row">
+  <label>추가 투자금</label>
+  <input class="extra-input" type="number" id="extra" value="0" min="0" step="10000"
+    placeholder="0 원" oninput="render()">
+  <span class="extra-hint" id="extra-hint"></span>
+</div>
+
+<div class="table-wrap" id="twrap">
+  <div class="empty">
+    <strong>데이터 없음</strong>
+    리밸런싱 앱에서 종목을 입력하고<br>
+    <em>적용 / 저장</em>을 눌러주세요.<br><br>
+    같은 브라우저에서 두 파일을 열면 자동 연동됩니다.
+  </div>
+</div>
+
+<div class="footer">
+  <span id="f-time"></span>
+  <span id="f-remain"></span>
+</div>
+
+<script>
+const GROUPS = [
+  { key:'domestic', label:'국내 주식', color:'#4f8ef7' },
+  { key:'etf_kr',   label:'국내 ETF',  color:'#34c78a' },
+  { key:'etf_us',   label:'해외 ETF',  color:'#2ecfbf' },
+  { key:'dividend', label:'배당주',     color:'#f5a623' },
+  { key:'bond',     label:'채권',       color:'#a78bfa' },
+  { key:'reits',    label:'리츠',       color:'#f06a6a' },
+];
+const DEFAULT_TARGETS = { domestic:20, etf_kr:15, etf_us:20, dividend:15, bond:15, reits:15 };
+
+let account  = 'j.w';
+let holdings = [];
+let targets  = { ...DEFAULT_TARGETS };
+
+const SK  = (a, t) => `pf_${a}_${t}`;
+const fmt = n => Math.round(n).toLocaleString('ko-KR');
+
+let lsAvailable = true;
+function checkLS() {
+  try {
+    localStorage.setItem('__test__', '1');
+    localStorage.removeItem('__test__');
+    lsAvailable = true;
+  } catch(e) {
+    lsAvailable = false;
+  }
+}
+
+/* ── 계좌 전환 ── */
+function switchAccount(id) { account = id; load(); }
+
+/* ── 불러오기 ── */
+async function load() {
+  // 1. Supabase 클라우드 우선
+  const cloud = await loadFromCloud(account);
+  if (cloud) {
+    holdings = cloud.holdings
+      .map(x => x.group === 'etf' ? { ...x, group: 'etf_kr' } : x)
+      .map(x => ({ weight: 100, ...x }));
+    if (cloud.targets && Object.keys(cloud.targets).length) {
+      let t = cloud.targets;
+      if ('etf' in t) { t.etf_kr = Math.round(t.etf/2); t.etf_us = t.etf - t.etf_kr; delete t.etf; }
+      targets = t;
+    } else {
+      targets = { ...DEFAULT_TARGETS };
+    }
+    badge(holdings.length > 0 ? 'ok' : 'empty');
+    render();
+    return;
+  }
+
+  // 2. localStorage 폴백
+  try {
+    const hRaw = localStorage.getItem(SK(account, 'holdings'));
+    const tRaw = localStorage.getItem(SK(account, 'targets'));
+    const nRaw = localStorage.getItem('pf_account_names');
+
+    if (nRaw) {
+      const names = JSON.parse(nRaw);
+      Array.from(document.getElementById('account-sel').options)
+        .forEach(o => { if (names[o.value]) o.textContent = names[o.value]; });
+    }
+
+    holdings = hRaw
+      ? JSON.parse(hRaw)
+          .map(x => x.group === 'etf' ? { ...x, group: 'etf_kr' } : x)
+          .map(x => ({ weight: 100, ...x }))
+      : [];
+
+    if (tRaw) {
+      let t = JSON.parse(tRaw);
+      if ('etf' in t) { t.etf_kr = Math.round(t.etf/2); t.etf_us = t.etf - t.etf_kr; delete t.etf; }
+      targets = t;
+    } else {
+      targets = { ...DEFAULT_TARGETS };
+    }
+
+    badge(!!hRaw && holdings.length > 0 ? 'ok' : 'empty');
+    render();
+  } catch(e) {
+    badge('error');
+    render();
+  }
+}
+
+/* ── 연동 뱃지 ── */
+function badge(state) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  if (state === 'ok' || state === true) {
+    dot.className = 'sync-dot';
+    lbl.textContent = '연동됨';
+  } else if (state === 'empty' || state === false) {
+    dot.className = 'sync-dot warn';
+    lbl.textContent = '데이터 없음';
+  } else if (state === 'blocked') {
+    dot.className = 'sync-dot warn';
+    lbl.textContent = 'Safari 제한';
+  } else {
+    dot.className = 'sync-dot off';
+    lbl.textContent = '미연동';
+  }
+}
+
+/* ── 새로고침 ── */
+function refresh() {
+  const b = document.getElementById('rfbtn');
+  b.classList.add('spin');
+  setTimeout(() => b.classList.remove('spin'), 550);
+  load();
+}
+
+/* ── 렌더 ── */
+function render() {
+  const extra    = parseFloat(document.getElementById('extra').value) || 0;
+  const hint     = document.getElementById('extra-hint');
+  hint.textContent = extra > 0 ? '+₩' + fmt(extra) : '';
+
+  const total    = holdings.reduce((s, h) => s + h.shares * h.price, 0);
+  const newTotal = total + extra;
+
+  /* 요약 */
+  document.getElementById('s-total').textContent = fmt(newTotal);
+  document.getElementById('s-count').textContent = holdings.length + '개';
+  document.getElementById('f-time').textContent  =
+    '마지막 확인 ' + new Date().toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' });
+
+  /* 그룹 weight 합 */
+  const gws = {};
+  GROUPS.forEach(g => {
+    gws[g.key] = holdings
+      .filter(h => h.group === g.key)
+      .reduce((s, h) => s + (parseFloat(h.weight) || 0), 0) || 1;
+  });
+
+  /* 최대 편차 */
+  let maxDev = 0;
+  holdings.forEach(h => {
+    const cur = total > 0 ? h.shares * h.price / total * 100 : 0;
+    const tgt = (targets[h.group] ?? 0) * ((parseFloat(h.weight) || 0) / gws[h.group]);
+    maxDev = Math.max(maxDev, Math.abs(tgt - cur));
+  });
+  const de = document.getElementById('s-dev');
+  de.textContent = maxDev.toFixed(1) + '%p';
+  de.style.color = maxDev > 5 ? '#f06a6a' : maxDev > 2 ? '#f5a623' : '#34c78a';
+
+  const wrap = document.getElementById('twrap');
+
+  /* 빈 상태 */
+  if (!holdings.length) {
+    wrap.innerHTML = `<div class="empty">
+      <strong>데이터 없음</strong>
+      리밸런싱 앱에서 종목을 입력하고<br>
+      <em>적용 / 저장</em>을 눌러주세요.<br><br>
+      같은 브라우저에서 두 파일을 열면 자동 연동됩니다.
+    </div>`;
+    return;
+  }
+
+  /* 행 계산 */
+  let totalAdj = 0;
+  const rows = holdings.map(h => {
+    const val  = h.shares * h.price;
+    const cur  = total > 0 ? val / total * 100 : 0;
+    const tw   = parseFloat(h.weight) || 0;
+    const tgt  = (targets[h.group] ?? 0) * (tw / gws[h.group]);
+    const diff = tgt - cur;
+    const sr   = Math.round((diff / 100) * newTotal / h.price);
+    totalAdj  += sr * h.price;
+    return { ...h, cur, tgt, diff, sr };
+  });
+
+  document.getElementById('f-remain').textContent =
+    extra > 0 ? `미사용 잔액 ₩${fmt(extra - totalAdj)}` : '';
+
+  /* 테이블 */
+  wrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>종목</th>
+        <th>현재가</th>
+        <th>현재%</th>
+        <th>목표%</th>
+        <th>차이</th>
+        <th>조정 주수</th>
+        <th>조정 금액</th>
+        <th>액션</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>`;
+
+  const tbody = document.getElementById('tbody');
+  rows.forEach(r => {
+    const g    = GROUPS.find(g => g.key === r.group);
+    const dc   = r.diff > 1 ? '#34c78a' : r.diff < -1 ? '#f06a6a' : '#8c8a96';
+    const sc   = r.sr > 0 ? '#34c78a' : r.sr < 0 ? '#f06a6a' : '#8c8a96';
+    const sign = r.sr > 0 ? '+' : '';
+    const [action, cls] =
+      r.diff > 1  ? ['매수', 'buy']  :
+      r.diff < -1 ? ['매도', 'sell'] : ['유지', 'hold'];
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="ticker-cell">
+          <div class="dot" style="background:${g?.color ?? '#888'}"></div>
+          <div>
+            <div class="tname">${r.name}</div>
+            <div class="tsub">${r.ticker} · ${g?.label ?? r.group}</div>
+          </div>
+        </div>
+      </td>
+      <td>₩${fmt(r.price)}</td>
+      <td>${r.cur.toFixed(1)}%</td>
+      <td>${r.tgt.toFixed(1)}%</td>
+      <td style="color:${dc}">${r.diff > 0 ? '+' : ''}${r.diff.toFixed(1)}%p</td>
+      <td style="color:${sc};font-weight:500">${r.sr === 0 ? '—' : sign + r.sr + '주'}</td>
+      <td style="color:${sc}">${r.sr === 0 ? '—' : sign + '₩' + fmt(r.sr * r.price)}</td>
+      <td class="${cls}">${action}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ── 리밸런싱 앱 저장 감지 → 자동 반영 ── */
+window.addEventListener('storage', e => {
+  if (e.key?.startsWith('pf_')) load();
+});
+
+load();
+</script>
+</body>
+</html>
