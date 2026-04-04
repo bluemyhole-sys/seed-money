@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>포트폴리오 리밸런싱</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0f0f11;
+    --surface: #18181c;
+    --surface2: #222228;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #f0eff4;
+    --muted: #8c8a96;
+    --faint: #3a3940;
+
+    --domestic: #4f8ef7;
+    --etf:      #34c78a;
+    --dividend: #f5a623;
+    --bond:     #a78bfa;
+    --reits:    #f06a6a;
+
+    --domestic-dim: rgba(79,142,247,0.15);
+    --etf-dim:      rgba(52,199,138,0.15);
+    --dividend-dim: rgba(245,166,35,0.15);
+    --bond-dim:     rgba(167,139,250,0.15);
+    --reits-dim:    rgba(240,106,106,0.15);
+
+    --font: 'IBM Plex Sans KR', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+    --radius: 10px;
+    --radius-lg: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    min-height: 100vh;
+    padding: 20px 16px 32px;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .header h1 {
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.3px;
+  }
+  .header-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ── Summary row ── */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .stat-value { font-family: var(--mono); font-size: 17px; font-weight: 500; }
+  .stat-value.krw::before { content: '₩ '; font-size: 11px; color: var(--muted); }
+
+  /* ── Chart + Legend ── */
+  .chart-section {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+    align-items: center;
+  }
+  .chart-wrap { position: relative; width: 200px; height: 200px; }
+  .chart-center {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none;
+  }
+  .chart-center-val { font-family: var(--mono); font-size: 18px; font-weight: 500; }
+  .chart-center-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .legend-list { display: flex; flex-direction: column; gap: 6px; }
+  .legend-row {
+    display: grid;
+    grid-template-columns: 8px 1fr auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    transition: border-color 0.15s;
+  }
+  .legend-row:hover { border-color: var(--border2); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .legend-name { font-size: 12px; color: var(--text); }
+  .legend-amount { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; }
+  .legend-pct { font-family: var(--mono); font-size: 12px; font-weight: 500; min-width: 40px; text-align: right; }
+
+  /* ── Table ── */
+  .section-title {
+    font-size: 11px; font-weight: 500;
+    color: var(--muted); letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .table-wrap {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    font-size: 10px; font-weight: 500;
+    color: var(--muted); text-align: left;
+    padding: 9px 12px;
+    border-bottom: 0.5px solid var(--border);
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  thead th:not(:first-child) { text-align: right; }
+  tbody tr { border-bottom: 0.5px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 9px 12px; vertical-align: middle; }
+  tbody td:not(:first-child) { text-align: right; font-family: var(--mono); font-size: 12px; }
+
+  .ticker-cell { display: flex; align-items: center; gap: 8px; }
+  .type-dot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+  .ticker-name { font-size: 12px; font-weight: 500; }
+  .ticker-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+  .tag {
+    display: inline-block; font-size: 10px; font-weight: 500;
+    padding: 2px 7px; border-radius: 4px;
+    font-family: var(--mono);
+  }
+
+  /* ── Input rows ── */
+  .input-section {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .add-row {
+    display: grid;
+    grid-template-columns: 1fr 90px 80px 80px 70px 34px;
+    gap: 6px;
+    padding: 10px 12px;
+    border-bottom: 0.5px solid var(--border);
+    align-items: center;
+  }
+  .add-row:last-child { border-bottom: none; }
+
+  input[type=text], input[type=number], select {
+    width: 100%;
+    background: var(--bg);
+    border: 0.5px solid var(--border2);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 5px 8px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus { border-color: rgba(255,255,255,0.3); }
+  select option { background: #222; }
+
+  .del-btn {
+    width: 28px; height: 28px;
+    background: transparent;
+    border: 0.5px solid var(--faint);
+    border-radius: 6px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .del-btn:hover { background: rgba(240,106,106,0.15); border-color: var(--reits); color: var(--reits); }
+
+  /* ── Buttons ── */
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--font);
+    font-size: 12px; font-weight: 500;
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 0.5px solid var(--border2);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover { background: var(--surface2); border-color: rgba(255,255,255,0.2); }
+  .btn-primary {
+    background: rgba(79,142,247,0.12);
+    border-color: rgba(79,142,247,0.4);
+    color: #7db3fa;
+  }
+  .btn-primary:hover { background: rgba(79,142,247,0.2); }
+
+  /* ── Target allocation sliders ── */
+  .target-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .target-item {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--radius); padding: 10px 12px;
+  }
+  .target-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .target-name { font-size: 11px; display: flex; align-items: center; gap: 6px; }
+  .target-val { font-family: var(--mono); font-size: 13px; font-weight: 500; }
+  input[type=range] {
+    width: 100%; height: 3px; appearance: none;
+    background: var(--faint); border-radius: 2px; outline: none; border: none; padding: 0;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    appearance: none; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--text);
+    cursor: pointer;
+  }
+
+  /* ── Rebalance suggestion ── */
+  .rebal-table .action-buy { color: var(--etf); }
+  .rebal-table .action-sell { color: var(--reits); }
+  .rebal-table .action-hold { color: var(--muted); }
+
+  .total-check { font-family: var(--mono); font-size: 11px; }
+  .total-ok { color: var(--etf); }
+  .total-err { color: var(--reits); }
+
+  .section-divider { height: 0.5px; background: var(--border); margin: 16px 0; }
+
+  @media (max-width: 500px) {
+    .chart-section { grid-template-columns: 1fr; }
+    .chart-wrap { width: 160px; height: 160px; margin: 0 auto; }
+    .summary { grid-template-columns: 1fr 1fr; }
+    .add-row { grid-template-columns: 1fr 70px 60px 60px 50px 28px; }
+    .target-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── AI 조언 모달 ── */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 999;
+    align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius-lg);
+    width: 100%; max-width: 560px;
+    max-height: 88vh; overflow-y: auto;
+    padding: 24px;
+    position: relative;
+  }
+  .modal-header {
+    display: flex; align-items: center;
+    justify-content: space-between; margin-bottom: 18px;
+  }
+  .modal-title { font-size: 14px; font-weight: 500; }
+  .modal-close {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: 0.5px solid var(--border2); background: transparent;
+    color: var(--muted); cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-close:hover { background: var(--surface2); color: var(--text); }
+  .scenario-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px; margin-bottom: 18px;
+  }
+  .scenario-group { display: flex; flex-direction: column; gap: 6px; }
+  .scenario-label {
+    font-size: 10px; font-weight: 500; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px;
+  }
+  .scenario-btn {
+    padding: 7px 10px; border-radius: 7px; font-size: 12px;
+    border: 0.5px solid var(--border2); background: transparent;
+    color: var(--muted); cursor: pointer; text-align: center;
+    transition: all 0.15s; font-family: var(--font);
+  }
+  .scenario-btn:hover { background: var(--surface2); color: var(--text); }
+  .scenario-btn.selected {
+    background: rgba(79,142,247,0.15);
+    border-color: rgba(79,142,247,0.5);
+    color: #7db3fa; font-weight: 500;
+  }
+  .modal-divider { height: 0.5px; background: var(--border); margin: 16px 0; }
+  .ai-result { font-size: 13px; line-height: 1.75; color: var(--text); white-space: pre-wrap; min-height: 60px; }
+  .ai-result.loading { color: var(--muted); }
+  .modal-run-btn {
+    width: 100%; padding: 10px; border-radius: 8px;
+    font-size: 13px; font-weight: 500; font-family: var(--font);
+    background: rgba(79,142,247,0.15);
+    border: 0.5px solid rgba(79,142,247,0.4);
+    color: #7db3fa; cursor: pointer; margin-bottom: 14px;
+    transition: background 0.15s;
+  }
+  .modal-run-btn:hover { background: rgba(79,142,247,0.25); }
+  .modal-run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  @media (max-width: 480px) { .scenario-grid { grid-template-columns: 1fr; } }
+
+  /* ── Account Tabs ── */
+  .account-tabs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .tab-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 0.5px solid var(--border2);
+    background: var(--surface);
+    color: var(--muted);
+    font-family: var(--font);
+    font-size: 12px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab-btn:hover { background: var(--surface2); color: var(--text); }
+  .tab-btn.active {
+    background: rgba(79,142,247,0.12);
+    border-color: rgba(79,142,247,0.45);
+    color: #7db3fa;
+  }
+  .tab-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; opacity: 0.7; flex-shrink: 0;
+  }
+  .tab-edit-btn {
+    width: 18px; height: 18px;
+    border: none; background: transparent;
+    color: currentColor; opacity: 0.4;
+    cursor: pointer; font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px; padding: 0;
+    transition: opacity 0.15s;
+  }
+  .tab-btn:hover .tab-edit-btn,
+  .tab-btn.active .tab-edit-btn { opacity: 0.7; }
+  .tab-edit-btn:hover { opacity: 1 !important; }
+  .tab-name-input {
+    background: var(--bg);
+    border: 0.5px solid rgba(79,142,247,0.4);
+    border-radius: 5px;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 12px; font-weight: 500;
+    padding: 2px 7px;
+    outline: none;
+    width: 90px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>포트폴리오 리밸런싱</h1>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span id="save-indicator" style="font-size:11px;color:#34c78a;opacity:0;transition:opacity 0.4s;font-family:var(--mono)">저장됨 ✓</span>
+    <span class="header-meta" id="updated-at"></span>
+  </div>
+</div>
+
+<!-- Account Tabs -->
+<div class="account-tabs" id="account-tabs"></div>
+
+<!-- Summary -->
+<div class="summary">
+  <div class="stat">
+    <div class="stat-label">총 평가금액</div>
+    <div class="stat-value krw" id="total-val">0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">보유 종목 수</div>
+    <div class="stat-value" id="stock-count">0<span style="font-size:11px;color:var(--muted)">개</span></div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">목표 대비 편차</div>
+    <div class="stat-value" id="max-deviation">—</div>
+  </div>
+</div>
+
+<!-- Chart + Legend -->
+<div class="chart-section">
+  <div class="chart-wrap">
+    <canvas id="pie"></canvas>
+    <div class="chart-center">
+      <div class="chart-center-val" id="c-val">—</div>
+      <div class="chart-center-lbl" id="c-lbl">자산군</div>
+    </div>
+  </div>
+  <div class="legend-list" id="legend-list"></div>
+</div>
+
+<div class="section-divider"></div>
+
+<!-- Holdings Table -->
+<div class="section-title">
+  <span>보유 종목</span>
+</div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>종목</th>
+        <th>자산군</th>
+        <th>주수</th>
+        <th>단가 (원)</th>
+        <th>평가금액</th>
+        <th>비중</th>
+      </tr>
+    </thead>
+    <tbody id="holdings-body"></tbody>
+  </table>
+</div>
+
+<!-- Add Holdings -->
+<div class="section-title" style="margin-top:16px;">
+  <span>종목 추가 <span style="font-size:10px;color:var(--muted);font-weight:400;">· 비중%는 같은 자산군 내 종목 간 목표 배분 가중치 (합계 100 권장)</span></span>
+  <span class="total-check" id="total-check"></span>
+</div>
+<div class="input-section" id="input-rows"></div>
+<div class="btn-row" style="margin-bottom:16px;">
+  <button class="btn" onclick="addRow()">+ 종목 추가</button>
+  <button class="btn btn-primary" onclick="applyHoldings()">적용 / 저장</button>
+  <button class="btn" onclick="resetAll()" style="color:var(--muted);">초기화</button>
+</div>
+
+<div class="section-divider"></div>
+
+<!-- Target Allocation -->
+<div class="section-title">
+  <span>목표 비중</span>
+  <span class="total-check" id="target-check"></span>
+</div>
+<div class="target-grid" id="target-grid"></div>
+
+<div class="section-divider"></div>
+
+<!-- Rebalancing Suggestion -->
+<div class="section-title"><span>리밸런싱 제안</span></div>
+<div class="table-wrap rebal-table">
+  <table>
+    <thead>
+      <tr>
+        <th>종목</th>
+        <th>현재 비중</th>
+        <th>목표 비중</th>
+        <th>차이</th>
+        <th>조정 금액</th>
+        <th>행동</th>
+      </tr>
+    </thead>
+    <tbody id="rebal-body"></tbody>
+  </table>
+</div>
+<div class="btn-row" style="margin-top:10px; margin-bottom:8px;">
+  <button class="btn btn-primary" onclick="askAI()">✦ AI 리밸런싱 조언 받기</button>
+</div>
+
+<!-- AI 조언 모달 -->
+<div class="modal-bg" id="ai-modal" onclick="closeModalBg(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">✦ AI 리밸런싱 조언</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+
+    <div class="scenario-grid">
+      <div class="scenario-group">
+        <div class="scenario-label">투자 성향</div>
+        <button class="scenario-btn" data-group="style" data-val="공격형" onclick="selectScenario(this)">공격형</button>
+        <button class="scenario-btn" data-group="style" data-val="중립형" onclick="selectScenario(this)">중립형</button>
+        <button class="scenario-btn" data-group="style" data-val="방어형" onclick="selectScenario(this)">방어형</button>
+      </div>
+      <div class="scenario-group">
+        <div class="scenario-label">투자 기간</div>
+        <button class="scenario-btn" data-group="period" data-val="단기 (1년 이내)" onclick="selectScenario(this)">단기</button>
+        <button class="scenario-btn" data-group="period" data-val="중기 (1~5년)" onclick="selectScenario(this)">중기</button>
+        <button class="scenario-btn" data-group="period" data-val="장기 (5년 이상)" onclick="selectScenario(this)">장기</button>
+      </div>
+      <div class="scenario-group">
+        <div class="scenario-label">시장 상황</div>
+        <button class="scenario-btn" data-group="market" data-val="상승장" onclick="selectScenario(this)">상승장</button>
+        <button class="scenario-btn" data-group="market" data-val="하락장" onclick="selectScenario(this)">하락장</button>
+        <button class="scenario-btn" data-group="market" data-val="횡보장" onclick="selectScenario(this)">횡보장</button>
+      </div>
+    </div>
+
+    <button class="modal-run-btn" id="run-btn" onclick="runAI()">조언 받기</button>
+
+    <div class="modal-divider" id="result-divider" style="display:none;"></div>
+    <div class="ai-result" id="ai-result" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+const GROUPS = [
+  { key: 'domestic', label: '국내 주식',  color: '#4f8ef7' },
+  { key: 'etf_kr',  label: '국내 ETF',   color: '#34c78a' },
+  { key: 'etf_us',  label: '해외 ETF',   color: '#2ecfbf' },
+  { key: 'dividend',label: '배당주',      color: '#f5a623' },
+  { key: 'bond',    label: '채권',        color: '#a78bfa' },
+  { key: 'reits',   label: '리츠',        color: '#f06a6a' },
+];
+
+const GROUP_TAGS = {
+  domestic: { label: '국내주식', bg: 'rgba(79,142,247,0.15)',  fg: '#7db3fa' },
+  etf_kr:   { label: '국내ETF',  bg: 'rgba(52,199,138,0.15)',  fg: '#4fe0a0' },
+  etf_us:   { label: '해외ETF',  bg: 'rgba(46,207,191,0.15)',  fg: '#2ecfbf' },
+  dividend: { label: '배당주',   bg: 'rgba(245,166,35,0.15)',  fg: '#f5c060' },
+  bond:     { label: '채권',     bg: 'rgba(167,139,250,0.15)', fg: '#c4adfc' },
+  reits:    { label: '리츠',     bg: 'rgba(240,106,106,0.15)', fg: '#f48f8f' },
+};
+
+const DEFAULT_TARGETS = { domestic: 20, etf_kr: 15, etf_us: 20, dividend: 15, bond: 15, reits: 15 };
+const DEFAULT_HOLDINGS = [
+  { name: '삼성전자',       ticker: '005930', group: 'domestic', shares: 10, price: 75000,  weight: 100 },
+  { name: 'KODEX 200',      ticker: '069500', group: 'etf_kr',   shares: 20, price: 38000,  weight: 100 },
+  { name: 'TIGER 미국S&P500', ticker: '360750', group: 'etf_us', shares: 15, price: 18500,  weight: 100 },
+  { name: 'KODEX 배당성장', ticker: '211560', group: 'dividend', shares: 30, price: 12000,  weight: 100 },
+  { name: 'KODEX 국채3년',  ticker: '114820', group: 'bond',     shares: 25, price: 10500,  weight: 100 },
+  { name: 'TIGER 리츠부동산', ticker: '182480', group: 'reits',  shares: 20, price: 9800,   weight: 100 },
+];
+
+// ── Account Management ──
+const ACCOUNT_IDS = ['A', 'B'];
+const DEFAULT_ACCOUNT_NAMES = { A: '계좌 A', B: '계좌 B' };
+
+function getAccountNames() {
+  try {
+    const n = localStorage.getItem('pf_account_names');
+    return n ? JSON.parse(n) : { ...DEFAULT_ACCOUNT_NAMES };
+  } catch(e) { return { ...DEFAULT_ACCOUNT_NAMES }; }
+}
+
+function saveAccountNames(names) {
+  try { localStorage.setItem('pf_account_names', JSON.stringify(names)); } catch(e) {}
+}
+
+let activeAccount = localStorage.getItem('pf_active_account') || 'A';
+let accountNames = getAccountNames();
+
+function storageKey(account, type) {
+  return `pf_${account}_${type}`;
+}
+
+function loadData(account) {
+  try {
+    const t = localStorage.getItem(storageKey(account, 'targets'));
+    const h = localStorage.getItem(storageKey(account, 'holdings'));
+    let targets = t ? JSON.parse(t) : { ...DEFAULT_TARGETS };
+    let holdings = h ? JSON.parse(h) : DEFAULT_HOLDINGS.map(x => ({ ...x }));
+    if ('etf' in targets) {
+      targets.etf_kr = Math.round(targets.etf / 2);
+      targets.etf_us = targets.etf - targets.etf_kr;
+      delete targets.etf;
+    }
+    holdings = holdings.map(h => h.group === 'etf' ? { ...h, group: 'etf_kr' } : h);
+    // Ensure weight field exists on all holdings
+    holdings = holdings.map(h => ({ weight: 100, ...h }));
+    return { targets, holdings };
+  } catch(e) {
+    return { targets: { ...DEFAULT_TARGETS }, holdings: DEFAULT_HOLDINGS.map(x => ({ ...x })) };
+  }
+}
+
+function saveData() {
+  try {
+    localStorage.setItem(storageKey(activeAccount, 'targets'), JSON.stringify(targets));
+    localStorage.setItem(storageKey(activeAccount, 'holdings'), JSON.stringify(holdings));
+    showSaved();
+  } catch(e) {}
+}
+
+function showSaved() {
+  const el = document.getElementById('save-indicator');
+  if (!el) return;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.opacity = '0', 1800);
+}
+
+function switchAccount(id) {
+  activeAccount = id;
+  try { localStorage.setItem('pf_active_account', id); } catch(e) {}
+  const saved = loadData(id);
+  targets = saved.targets;
+  holdings = saved.holdings;
+  inputRows = holdings.map(h => ({ ...h }));
+  if (chart) { chart.destroy(); chart = null; }
+  renderAccountTabs();
+  renderAll();
+}
+
+function renderAccountTabs() {
+  const container = document.getElementById('account-tabs');
+  container.innerHTML = '';
+  ACCOUNT_IDS.forEach(id => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (id === activeAccount ? ' active' : '');
+    btn.onclick = () => { if (id !== activeAccount) switchAccount(id); };
+
+    const dot = document.createElement('div');
+    dot.className = 'tab-dot';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = accountNames[id];
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'tab-edit-btn';
+    editBtn.title = '이름 변경';
+    editBtn.textContent = '✎';
+    editBtn.onclick = (e) => {
+      e.stopPropagation();
+      startEditTabName(id, btn, nameSpan, editBtn);
+    };
+
+    btn.appendChild(dot);
+    btn.appendChild(nameSpan);
+    btn.appendChild(editBtn);
+    container.appendChild(btn);
+  });
+}
+
+function startEditTabName(id, btn, nameSpan, editBtn) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tab-name-input';
+  input.value = accountNames[id];
+  input.maxLength = 12;
+
+  nameSpan.replaceWith(input);
+  editBtn.style.display = 'none';
+  input.focus();
+  input.select();
+
+  function commit() {
+    const val = input.value.trim() || DEFAULT_ACCOUNT_NAMES[id];
+    accountNames[id] = val;
+    saveAccountNames(accountNames);
+    renderAccountTabs();
+  }
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') { input.value = accountNames[id]; input.blur(); }
+    e.stopPropagation();
+  });
+  input.onclick = e => e.stopPropagation();
+}
+
+const saved = loadData(activeAccount);
+let targets = saved.targets;
+let holdings = saved.holdings;
+let inputRows = holdings.map(h => ({ ...h }));
+
+let chart;
+
+function fmt(n) {
+  return Math.round(n).toLocaleString('ko-KR');
+}
+
+function calcGroupTotals() {
+  const totals = {};
+  GROUPS.forEach(g => totals[g.key] = 0);
+  holdings.forEach(h => {
+    totals[h.group] = (totals[h.group] || 0) + h.shares * h.price;
+  });
+  return totals;
+}
+
+function totalPortfolio() {
+  return holdings.reduce((s, h) => s + h.shares * h.price, 0);
+}
+
+function renderAll() {
+  const total = totalPortfolio();
+  const groupTotals = calcGroupTotals();
+
+  // Header time
+  document.getElementById('updated-at').textContent =
+    new Date().toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' 기준';
+
+  // Summary
+  document.getElementById('total-val').textContent = fmt(total);
+  document.getElementById('stock-count').innerHTML =
+    holdings.length + '<span style="font-size:11px;color:var(--muted)">개</span>';
+
+  // Max deviation
+  let maxDev = 0;
+  GROUPS.forEach(g => {
+    const cur = total > 0 ? (groupTotals[g.key] / total * 100) : 0;
+    const dev = Math.abs(cur - targets[g.key]);
+    if (dev > maxDev) maxDev = dev;
+  });
+  const devEl = document.getElementById('max-deviation');
+  devEl.textContent = maxDev.toFixed(1) + '%p';
+  devEl.style.color = maxDev > 5 ? '#f06a6a' : maxDev > 2 ? '#f5a623' : '#34c78a';
+
+  // Pie chart
+  const pieData = GROUPS.map(g => groupTotals[g.key]);
+  if (!chart) {
+    chart = new Chart(document.getElementById('pie'), {
+      type: 'doughnut',
+      data: {
+        labels: GROUPS.map(g => g.label),
+        datasets: [{
+          data: pieData,
+          backgroundColor: GROUPS.map(g => g.color),
+          borderColor: '#0f0f11',
+          borderWidth: 3,
+          hoverOffset: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '64%',
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        onHover: (evt, els) => {
+          if (els.length > 0) {
+            const i = els[0].index;
+            const pct = total > 0 ? (pieData[i] / total * 100).toFixed(1) : 0;
+            document.getElementById('c-val').textContent = pct + '%';
+            document.getElementById('c-lbl').textContent = GROUPS[i].label;
+          } else {
+            document.getElementById('c-val').textContent = '—';
+            document.getElementById('c-lbl').textContent = '자산군';
+          }
+        }
+      }
+    });
+  } else {
+    chart.data.datasets[0].data = pieData;
+    chart.update();
+  }
+
+  // Legend
+  const ll = document.getElementById('legend-list');
+  ll.innerHTML = '';
+  GROUPS.forEach((g, i) => {
+    const pct = total > 0 ? (groupTotals[g.key] / total * 100).toFixed(1) : '0.0';
+    const row = document.createElement('div');
+    row.className = 'legend-row';
+    row.innerHTML = `
+      <div class="legend-dot" style="background:${g.color}"></div>
+      <div class="legend-name">${g.label}</div>
+      <div class="legend-amount">₩${fmt(groupTotals[g.key])}</div>
+      <div class="legend-pct" style="color:${g.color}">${pct}%</div>
+    `;
+    ll.appendChild(row);
+  });
+
+  // Holdings table
+  const tbody = document.getElementById('holdings-body');
+  tbody.innerHTML = '';
+  holdings.forEach((h, i) => {
+    const val = h.shares * h.price;
+    const pct = total > 0 ? (val / total * 100).toFixed(1) : '0.0';
+    const tag = GROUP_TAGS[h.group];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="ticker-cell">
+          <div class="type-dot" style="background:${GROUPS.find(g=>g.key===h.group).color}"></div>
+          <div>
+            <div class="ticker-name">${h.name}</div>
+            <div class="ticker-sub">${h.ticker}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="tag" style="background:${tag.bg};color:${tag.fg}">${tag.label}</span></td>
+      <td>${h.shares.toLocaleString()}</td>
+      <td>${fmt(h.price)}</td>
+      <td>₩${fmt(val)}</td>
+      <td style="color:${GROUPS.find(g=>g.key===h.group).color}">${pct}%</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Rebalancing table
+  const rb = document.getElementById('rebal-body');
+  rb.innerHTML = '';
+
+  // Precompute weight sums per group
+  const groupWeightSums = {};
+  GROUPS.forEach(g => {
+    const rows = holdings.filter(h => h.group === g.key);
+    groupWeightSums[g.key] = rows.reduce((s, h) => s + (parseFloat(h.weight) || 0), 0) || 1;
+  });
+
+  holdings.forEach(h => {
+    const val = h.shares * h.price;
+    const curPct = total > 0 ? (val / total * 100) : 0;
+
+    // Target % for this ticker = group target * (this ticker's weight / sum of weights in group)
+    const tickerWeight = parseFloat(h.weight) || 0;
+    const groupSum = groupWeightSums[h.group];
+    const tgtPct = targets[h.group] * (tickerWeight / groupSum);
+
+    const diff = tgtPct - curPct;
+    const adjAmt = (diff / 100) * total;
+    let action, actionClass;
+    if (diff > 1) { action = '매수'; actionClass = 'action-buy'; }
+    else if (diff < -1) { action = '매도'; actionClass = 'action-sell'; }
+    else { action = '유지'; actionClass = 'action-hold'; }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="ticker-cell">
+          <div class="type-dot" style="background:${GROUPS.find(g=>g.key===h.group).color}"></div>
+          <div>
+            <div class="ticker-name">${h.name}</div>
+            <div class="ticker-sub" style="font-size:10px;color:var(--muted);">${h.ticker} · 비중가중 ${tickerWeight}%</div>
+          </div>
+        </div>
+      </td>
+      <td>${curPct.toFixed(1)}%</td>
+      <td>${tgtPct.toFixed(1)}%</td>
+      <td style="color:${diff > 1 ? '#34c78a' : diff < -1 ? '#f06a6a' : 'var(--muted)'}">
+        ${diff > 0 ? '+' : ''}${diff.toFixed(1)}%p
+      </td>
+      <td style="color:${diff > 1 ? '#34c78a' : diff < -1 ? '#f06a6a' : 'var(--muted)'}">
+        ${adjAmt >= 0 ? '+' : ''}₩${fmt(adjAmt)}
+      </td>
+      <td class="${actionClass}">${action}</td>
+    `;
+    rb.appendChild(tr);
+  });
+
+  renderTargetGrid();
+  renderInputRows();
+}
+
+// ── Target Grid ──
+function renderTargetGrid() {
+  const grid = document.getElementById('target-grid');
+  grid.innerHTML = '';
+  GROUPS.forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'target-item';
+    div.innerHTML = `
+      <div class="target-header">
+        <div class="target-name">
+          <div class="type-dot" style="background:${g.color};width:7px;height:7px;border-radius:2px;"></div>
+          ${g.label}
+        </div>
+        <div class="target-val" id="tv-${g.key}" style="color:${g.color}">${targets[g.key]}%</div>
+      </div>
+      <input type="range" min="0" max="100" step="5" value="${targets[g.key]}"
+        oninput="updateTarget('${g.key}', this.value)">
+    `;
+    grid.appendChild(div);
+  });
+  updateTargetCheck();
+}
+
+function updateTarget(key, val) {
+  targets[key] = parseInt(val);
+  document.getElementById('tv-' + key).textContent = val + '%';
+  updateTargetCheck();
+  saveData();
+  renderAll();
+}
+
+function updateTargetCheck() {
+  const sum = Object.values(targets).reduce((a, b) => a + b, 0);
+  const el = document.getElementById('target-check');
+  el.textContent = '합계 ' + sum + '%';
+  el.className = 'total-check ' + (sum === 100 ? 'total-ok' : 'total-err');
+}
+
+// ── Input Rows ──
+function getGroupWeightSum(group, excludeIdx) {
+  return inputRows.reduce((s, r, i) => i !== excludeIdx && r.group === group ? s + (parseFloat(r.weight) || 0) : s, 0);
+}
+
+function renderInputRows() {
+  const container = document.getElementById('input-rows');
+  container.innerHTML = '';
+
+  // Group header row
+  const headerDiv = document.createElement('div');
+  headerDiv.style.cssText = 'display:grid;grid-template-columns:1fr 90px 80px 80px 70px 34px;gap:6px;padding:6px 12px;border-bottom:0.5px solid var(--border);';
+  headerDiv.innerHTML = `
+    <div style="font-size:10px;color:var(--muted);font-weight:500;letter-spacing:0.3px;">종목명 / 티커</div>
+    <div style="font-size:10px;color:var(--muted);font-weight:500;letter-spacing:0.3px;">자산군</div>
+    <div style="font-size:10px;color:var(--muted);font-weight:500;letter-spacing:0.3px;text-align:right;">주수</div>
+    <div style="font-size:10px;color:var(--muted);font-weight:500;letter-spacing:0.3px;text-align:right;">단가</div>
+    <div style="font-size:10px;color:var(--muted);font-weight:500;letter-spacing:0.3px;text-align:right;" title="같은 자산군 내 종목별 목표 비중 가중치 (합계 100 권장)">비중%</div>
+    <div></div>
+  `;
+  container.appendChild(headerDiv);
+
+  inputRows.forEach((row, i) => {
+    const div = document.createElement('div');
+    div.className = 'add-row';
+
+    // Compute sum of weights in same group (excluding this row)
+    const groupRows = inputRows.filter((r, j) => r.group === row.group);
+    const groupWeightSum = groupRows.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0);
+    const weightOk = Math.abs(groupWeightSum - 100) < 0.5;
+    const weightColor = weightOk ? '#34c78a' : groupWeightSum > 100 ? '#f06a6a' : '#f5a623';
+
+    div.innerHTML = `
+      <div>
+        <input type="text" placeholder="종목명" value="${row.name}"
+          oninput="inputRows[${i}].name=this.value">
+        <input type="text" placeholder="티커/코드" value="${row.ticker}" style="margin-top:4px;"
+          oninput="inputRows[${i}].ticker=this.value">
+      </div>
+      <select onchange="inputRows[${i}].group=this.value; renderInputRows();">
+        ${GROUPS.map(g => `<option value="${g.key}" ${row.group===g.key?'selected':''}>${g.label}</option>`).join('')}
+      </select>
+      <input type="number" placeholder="주수" value="${row.shares}" min="0"
+        oninput="inputRows[${i}].shares=parseFloat(this.value)||0">
+      <input type="number" placeholder="단가" value="${row.price}" min="0"
+        oninput="inputRows[${i}].price=parseFloat(this.value)||0">
+      <div style="position:relative;">
+        <input type="number" placeholder="100" value="${row.weight ?? 100}" min="0" max="100" step="5"
+          oninput="inputRows[${i}].weight=parseFloat(this.value)||0; renderInputRows();"
+          style="padding-right:18px;"
+          title="이 자산군(${GROUPS.find(g=>g.key===row.group).label}) 내 이 종목의 목표 비중 가중치">
+        <span style="position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:9px;color:var(--muted);pointer-events:none;">%</span>
+      </div>
+      <button class="del-btn" onclick="deleteRow(${i})">×</button>
+    `;
+    container.appendChild(div);
+  });
+
+  // Per-group weight sum hints
+  const groups = [...new Set(inputRows.map(r => r.group))];
+  groups.forEach(gKey => {
+    const rows = inputRows.filter(r => r.group === gKey);
+    if (rows.length < 2) return; // only show hint when multiple tickers in same group
+    const sum = rows.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0);
+    const ok = Math.abs(sum - 100) < 0.5;
+    const color = ok ? '#34c78a' : sum > 100 ? '#f06a6a' : '#f5a623';
+    const g = GROUPS.find(g => g.key === gKey);
+    const hint = document.createElement('div');
+    hint.style.cssText = `padding:4px 12px;font-size:10px;color:${color};font-family:var(--mono);border-top:0.5px solid var(--border);`;
+    hint.innerHTML = `<span style="color:var(--muted);">${g.label} 비중 합계: </span><span style="font-weight:500;">${sum.toFixed(0)}%</span>${ok ? ' ✓' : ' (100이 되도록 조정하세요)'}`;
+    container.appendChild(hint);
+  });
+}
+
+function addRow() {
+  inputRows.push({ name: '', ticker: '', group: 'domestic', shares: 0, price: 0, weight: 100 });
+  renderInputRows();
+}
+
+function deleteRow(i) {
+  inputRows.splice(i, 1);
+  renderInputRows();
+}
+
+function applyHoldings() {
+  holdings = inputRows.map(r => ({ ...r }));
+  saveData();
+  renderAll();
+}
+
+function askAI() {
+  document.getElementById('ai-modal').classList.add('open');
+  document.getElementById('ai-result').style.display = 'none';
+  document.getElementById('result-divider').style.display = 'none';
+  document.getElementById('ai-result').textContent = '';
+}
+
+function closeModal() {
+  document.getElementById('ai-modal').classList.remove('open');
+}
+
+function closeModalBg(e) {
+  if (e.target === document.getElementById('ai-modal')) closeModal();
+}
+
+const scenario = {};
+
+function selectScenario(btn) {
+  const group = btn.dataset.group;
+  document.querySelectorAll(`.scenario-btn[data-group="${group}"]`).forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  scenario[group] = btn.dataset.val;
+}
+
+async function runAI() {
+  const total = totalPortfolio();
+  const groupTotals = calcGroupTotals();
+
+  const style  = scenario.style  || '중립형';
+  const period = scenario.period || '중기 (1~5년)';
+  const market = scenario.market || '횡보장';
+
+  const holdingLines = holdings.map(h => {
+    const groupSum = holdings.filter(x => x.group === h.group).reduce((s, x) => s + (parseFloat(x.weight)||0), 0) || 1;
+    const tickerTgt = (targets[h.group] * ((parseFloat(h.weight)||0) / groupSum)).toFixed(1);
+    return `${h.name}(${h.ticker}) ${GROUPS.find(g=>g.key===h.group).label} ${h.shares}주 @${h.price.toLocaleString()}원 = ₩${(h.shares*h.price).toLocaleString()} [목표${tickerTgt}%]`;
+  }).join('\n');
+
+  const groupLines = GROUPS.map(g => {
+    const cur = total > 0 ? (groupTotals[g.key]/total*100).toFixed(1) : '0.0';
+    return `${g.label}: 현재 ${cur}% / 목표 ${targets[g.key]}%`;
+  }).join('\n');
+
+  const prompt = `포트폴리오 리밸런싱 조언을 해줘.
+
+[계좌: ${accountNames[activeAccount]}]
+
+[보유 종목]
+${holdingLines}
+
+[자산군별 현재 vs 목표 비중]
+${groupLines}
+총 평가금액: ₩${total.toLocaleString()}
+
+[투자자 조건]
+- 투자 성향: ${style}
+- 투자 기간: ${period}
+- 시장 상황: ${market}
+
+다음 형식으로 조언해줘:
+1. 현재 포트폴리오 진단
+2. 이 조건에서 주목할 자산군
+3. 구체적 리밸런싱 액션 (종목별)
+4. 주의사항`;
+
+  const resultEl = document.getElementById('ai-result');
+  const divider  = document.getElementById('result-divider');
+  const runBtn   = document.getElementById('run-btn');
+
+  resultEl.style.display = 'block';
+  divider.style.display  = 'block';
+  resultEl.className = 'ai-result';
+
+  try {
+    await navigator.clipboard.writeText(prompt);
+    resultEl.innerHTML = `<div style="text-align:center; padding: 16px 0;">
+      <div style="font-size:28px; margin-bottom:12px;">📋</div>
+      <div style="font-weight:500; margin-bottom:8px; color: #7db3fa;">클립보드에 복사됐어요!</div>
+      <div style="color:var(--muted); font-size:12px; line-height:1.7;">
+        1. <a href="https://claude.ai" target="_blank" style="color:#7db3fa;">claude.ai</a> 를 새 탭에서 열어요<br>
+        2. 채팅창에 붙여넣기 (Ctrl+V / Cmd+V)<br>
+        3. 전송하면 조언을 바로 받을 수 있어요
+      </div>
+      <div style="margin-top:14px; padding: 10px 14px; background: rgba(79,142,247,0.08); border-radius:8px; border: 0.5px solid rgba(79,142,247,0.2);">
+        <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">복사된 조건</div>
+        <div style="font-size:12px; color:var(--text);">${style} &nbsp;·&nbsp; ${period} &nbsp;·&nbsp; ${market}</div>
+      </div>
+    </div>`;
+  } catch(e) {
+    resultEl.innerHTML = `<div style="font-size:12px; color:var(--muted); line-height:1.8;">
+      자동 복사가 안 됐어요. 아래 내용을 직접 복사해서 claude.ai에 붙여넣기 해주세요.<br><br>
+      <textarea style="width:100%; height:120px; background:var(--bg); border:0.5px solid var(--border2); border-radius:6px; color:var(--text); font-size:11px; padding:8px; resize:none; font-family:var(--mono);">${prompt}</textarea>
+    </div>`;
+  }
+}
+
+function resetAll() {
+  if (!confirm(`'${accountNames[activeAccount]}' 데이터를 초기값으로 되돌릴까요?`)) return;
+  targets = { ...DEFAULT_TARGETS };
+  holdings = DEFAULT_HOLDINGS.map(x => ({ ...x }));
+  inputRows = holdings.map(h => ({ ...h }));
+  localStorage.removeItem(storageKey(activeAccount, 'targets'));
+  localStorage.removeItem(storageKey(activeAccount, 'holdings'));
+  if (chart) { chart.destroy(); chart = null; }
+  renderAll();
+}
+
+// Init
+renderAccountTabs();
+renderAll();
+</script>
+</body>
+</html>
