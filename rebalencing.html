@@ -633,7 +633,7 @@ function saveData() {
     localStorage.setItem(storageKey(activeAccount, 'targets'), JSON.stringify(targets));
     localStorage.setItem(storageKey(activeAccount, 'holdings'), JSON.stringify(holdings));
   } catch(e) {}
-  saveToCloud(accountNames[activeAccount] || activeAccount, holdings, targets);
+  saveToCloud(activeAccount === 'A' ? 'j.w' : 'g.y', holdings, targets);
   showSaved();
 }
 
@@ -648,7 +648,7 @@ function showSaved() {
 async function switchAccount(id) {
   activeAccount = id;
   try { localStorage.setItem('pf_active_account', id); } catch(e) {}
-  const accountName = accountNames[id] || id;
+  const accountName = id === 'A' ? 'j.w' : 'g.y';
   const cloud = await loadFromCloud(accountName);
   if (cloud) {
     targets = cloud.targets;
@@ -1151,7 +1151,7 @@ function resetAll() {
 // Init
 renderAccountTabs();
 (async () => {
-  const accountName = accountNames[activeAccount] || activeAccount;
+  const accountName = activeAccount === 'A' ? 'j.w' : 'g.y';
   const cloud = await loadFromCloud(accountName);
   if (cloud) {
     targets = cloud.targets;
