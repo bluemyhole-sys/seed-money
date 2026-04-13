@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>적금 계산기</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f11;
+    --surface: #1a1a1f;
+    --surface2: #22222a;
+    --border: #2e2e3a;
+    --accent: #6ee7b7;
+    --accent2: #38bdf8;
+    --warn: #fb923c;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --highlight: #f0fdf4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans KR', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 24px 16px 48px;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 480px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  .header p {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 300;
+  }
+
+  /* Slider group */
+  .field { display: flex; flex-direction: column; gap: 8px; }
+
+  .field-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .field-label span:first-child {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .field-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 15px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+    position: relative;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(110,231,183,0.2);
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 6px rgba(110,231,183,0.25);
+  }
+
+  /* Tax buttons */
+  .tax-group {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .tax-btn {
+    padding: 10px 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .tax-btn span { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .tax-btn.active {
+    background: rgba(110,231,183,0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .tax-btn.active span { color: rgba(110,231,183,0.6); }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Results grid */
+  .results {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .result-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .result-item.highlight {
+    background: rgba(110,231,183,0.07);
+    border-color: rgba(110,231,183,0.3);
+    grid-column: span 2;
+  }
+
+  .result-label {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .result-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.5px;
+  }
+
+  .result-val .unit {
+    font-size: 13px;
+    color: var(--muted);
+    margin-left: 2px;
+    font-weight: 400;
+  }
+
+  .result-item.highlight .result-val {
+    color: var(--accent);
+    font-size: 28px;
+  }
+
+  /* 실질 이율 섹션 */
+  .rate-section {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .rate-section .section-title {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .rate-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .rate-row .label {
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .rate-row .val {
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    color: var(--accent2);
+  }
+
+  .rate-row .val.deducted {
+    color: var(--warn);
+  }
+
+  .rate-row.total .label {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .rate-row.total .val {
+    font-size: 17px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .rate-bar-bg {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .rate-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    border-radius: 3px;
+    transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .footnote {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <h1>적금 이자 계산기</h1>
+    <p>세제공제 반영 실질 이율 포함</p>
+  </div>
+
+  <!-- 월 납입액 -->
+  <div class="field">
+    <div class="field-label">
+      <span>월 납입액</span>
+      <span class="field-value" id="val-amount">50만원</span>
+    </div>
+    <input type="range" id="sl-amount" min="10" max="300" step="10" value="50">
+  </div>
+
+  <!-- 연 금리 -->
+  <div class="field">
+    <div class="field-label">
+      <span>연 금리</span>
+      <span class="field-value" id="val-rate">5.5%</span>
+    </div>
+    <input type="range" id="sl-rate" min="1" max="10" step="0.1" value="5.5">
+  </div>
+
+  <!-- 기간 -->
+  <div class="field">
+    <div class="field-label">
+      <span>기간</span>
+      <span class="field-value" id="val-period">12개월</span>
+    </div>
+    <input type="range" id="sl-period" min="1" max="60" step="1" value="12">
+  </div>
+
+  <!-- 세금 -->
+  <div class="field">
+    <div class="field-label">
+      <span>세금 적용</span>
+    </div>
+    <div class="tax-group">
+      <button class="tax-btn active" data-tax="15.4" onclick="setTax(this)">
+        일반과세<span>15.4%</span>
+      </button>
+      <button class="tax-btn" data-tax="9.9" onclick="setTax(this)">
+        세금우대<span>9.9%</span>
+      </button>
+      <button class="tax-btn" data-tax="0" onclick="setTax(this)">
+        비과세<span>0%</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- 결과 -->
+  <div class="results">
+    <div class="result-item">
+      <div class="result-label">총 납입 원금</div>
+      <div class="result-val" id="r-principal">—<span class="unit">만원</span></div>
+    </div>
+    <div class="result-item">
+      <div class="result-label">세전 이자</div>
+      <div class="result-val" id="r-interest-gross">—<span class="unit">만원</span></div>
+    </div>
+    <div class="result-item">
+      <div class="result-label">이자 세금</div>
+      <div class="result-val" id="r-tax">—<span class="unit">만원</span></div>
+    </div>
+    <div class="result-item highlight" style="grid-column:span 1">
+      <div class="result-label">세후 수령액</div>
+      <div class="result-val" id="r-net">—<span class="unit">만원</span></div>
+    </div>
+    <div class="result-item highlight" style="grid-column:span 1; background:rgba(56,189,248,0.07); border-color:rgba(56,189,248,0.3)">
+      <div class="result-label">세후 순이자</div>
+      <div class="result-val" id="r-interest-net" style="color:var(--accent2)">—<span class="unit">만원</span></div>
+    </div>
+  </div>
+
+  <!-- 실질 이율 -->
+  <div class="rate-section">
+    <div class="section-title">실질 이율 분석</div>
+    <div class="rate-row">
+      <span class="label">명목 연 금리</span>
+      <span class="val" id="rr-nominal">5.50%</span>
+    </div>
+    <div class="rate-row">
+      <span class="label">세금 차감</span>
+      <span class="val deducted" id="rr-taxcut">−0.85%</span>
+    </div>
+    <div class="rate-bar-bg">
+      <div class="rate-bar-fill" id="rr-bar" style="width:60%"></div>
+    </div>
+    <div class="rate-row total">
+      <span class="label">실질 연 금리</span>
+      <span class="val" id="rr-effective">4.65%</span>
+    </div>
+  </div>
+
+  <div class="footnote">
+    적금 이자는 월복리 기준 계산됩니다.<br>
+    실질 이율 = 명목 금리 × (1 − 세율)
+  </div>
+</div>
+
+<script>
+  let taxRate = 15.4;
+
+  const slAmount = document.getElementById('sl-amount');
+  const slRate = document.getElementById('sl-rate');
+  const slPeriod = document.getElementById('sl-period');
+
+  function fmt(n) { return Math.round(n).toLocaleString(); }
+  function fmtDec(n, d=2) { return n.toFixed(d); }
+
+  function setTax(btn) {
+    document.querySelectorAll('.tax-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    taxRate = parseFloat(btn.dataset.tax);
+    calc();
+  }
+
+  function calc() {
+    const monthly = parseFloat(slAmount.value) * 10000;
+    const annualRate = parseFloat(slRate.value) / 100;
+    const months = parseInt(slPeriod.value);
+    const monthlyRate = annualRate / 12;
+
+    // 적금 세전 이자 (월납입 정기적금, 각 회차 이자 합산)
+    let grossInterest = 0;
+    for (let i = 1; i <= months; i++) {
+      grossInterest += monthly * monthlyRate * (months - i + 1);
+    }
+
+    const taxAmount = grossInterest * (taxRate / 100);
+    const netInterest = grossInterest - taxAmount;
+    const principal = monthly * months;
+    const netTotal = principal + netInterest;
+
+    // 실질 연 이율 (세후 순이자 / 평균 투자원금 / 년수)
+    const avgPrincipal = principal / 2;
+    const years = months / 12;
+    const effectiveRate = years > 0 ? (netInterest / avgPrincipal / years) * 100 : 0;
+    const nominalRate = annualRate * 100;
+    const taxCut = nominalRate - effectiveRate;
+
+    // Update UI
+    document.getElementById('val-amount').textContent = `${slAmount.value}만원`;
+    document.getElementById('val-rate').textContent = `${parseFloat(slRate.value).toFixed(1)}%`;
+    document.getElementById('val-period').textContent = `${months}개월`;
+
+    document.getElementById('r-principal').innerHTML = `${fmt(principal/10000)}<span class="unit">만원</span>`;
+    document.getElementById('r-interest-gross').innerHTML = `${fmt(grossInterest/10000)}<span class="unit">만원</span>`;
+    document.getElementById('r-tax').innerHTML = `${fmt(taxAmount/10000)}<span class="unit">만원</span>`;
+    document.getElementById('r-net').innerHTML = `${fmt(netTotal/10000)}<span class="unit">만원</span>`;
+    document.getElementById('r-interest-net').innerHTML = `${fmt(netInterest/10000)}<span class="unit">만원</span>`;
+
+    document.getElementById('rr-nominal').textContent = `${fmtDec(nominalRate)}%`;
+    document.getElementById('rr-taxcut').textContent = `−${fmtDec(taxCut)}%`;
+    document.getElementById('rr-effective').textContent = `${fmtDec(effectiveRate)}%`;
+
+    // bar: 실질이율/명목이율 비율
+    const barPct = nominalRate > 0 ? Math.min((effectiveRate / nominalRate) * 100, 100) : 0;
+    document.getElementById('rr-bar').style.width = barPct + '%';
+  }
+
+  slAmount.addEventListener('input', calc);
+  slRate.addEventListener('input', calc);
+  slPeriod.addEventListener('input', calc);
+
+  calc();
+</script>
+</body>
+</html>
